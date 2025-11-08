@@ -182,6 +182,7 @@ public class VoteStorage {
     public void addVote(UUID playerUUID) {
         String currentTimestamp = LocalDateTime.now().toString();
         LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
 
         try {
             String selectSQL = "SELECT * FROM player_votes WHERE uuid = ?";
@@ -205,27 +206,28 @@ public class VoteStorage {
                         monthlyTimestamp = LocalDateTime.parse(rs.getString("monthly_timestamp"));
                         yearlyTimestamp = LocalDateTime.parse(rs.getString("yearly_timestamp"));
                     }
-
-                    if (dailyTimestamp.isBefore(now.minusDays(1))) {
-                        resetVote("daily", playerUUID, currentTimestamp);
+                    
+                    LocalDate dailyDate = dailyTimestamp.toLocalDate();
+                    if (dailyDate.isBefore(today)) {
+                        resetAndIncrementVote("daily", playerUUID, currentTimestamp);
                     } else {
                         incrementVote("daily", playerUUID);
                     }
 
                     if (weeklyTimestamp.isBefore(now.minusWeeks(1))) {
-                        resetVote("weekly", playerUUID, currentTimestamp);
+                        resetAndIncrementVote("weekly", playerUUID, currentTimestamp);
                     } else {
                         incrementVote("weekly", playerUUID);
                     }
 
                     if (monthlyTimestamp.isBefore(now.minusMonths(1))) {
-                        resetVote("monthly", playerUUID, currentTimestamp);
+                        resetAndIncrementVote("monthly", playerUUID, currentTimestamp);
                     } else {
                         incrementVote("monthly", playerUUID);
                     }
 
                     if (yearlyTimestamp.isBefore(now.minusYears(1))) {
-                        resetVote("yearly", playerUUID, currentTimestamp);
+                        resetAndIncrementVote("yearly", playerUUID, currentTimestamp);
                     } else {
                         incrementVote("yearly", playerUUID);
                     }
@@ -263,6 +265,7 @@ public class VoteStorage {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
         String currentTimestamp = now.toString();
 
         try {
@@ -288,7 +291,8 @@ public class VoteStorage {
                         yearlyTimestamp = LocalDateTime.parse(rs.getString("yearly_timestamp"));
                     }
 
-                    boolean resetDaily = dailyTimestamp.isBefore(now.minusDays(1));
+                    LocalDate dailyDate = dailyTimestamp.toLocalDate();
+                    boolean resetDaily = dailyDate.isBefore(today);
                     boolean resetWeekly = weeklyTimestamp.isBefore(now.minusWeeks(1));
                     boolean resetMonthly = monthlyTimestamp.isBefore(now.minusMonths(1));
                     boolean resetYearly = yearlyTimestamp.isBefore(now.minusYears(1));
@@ -319,13 +323,13 @@ public class VoteStorage {
         }
     }
     /**
-     * Resets a specific vote period if the timestamp is expired (older than the threshold).
+     * Resets a specific vote period and sets the count to 1 (for the current vote).
      * @param period The vote period to reset (daily, weekly, monthly, yearly)
      * @param playerUUID UUID of the player
      * @param newTimestamp The new timestamp to store
      */
-    private void resetVote(String period, UUID playerUUID, String newTimestamp) {
-        String updateSQL = "UPDATE player_votes SET " + period + "_count = 0, " + period + "_timestamp = ? WHERE uuid = ?";
+    private void resetAndIncrementVote(String period, UUID playerUUID, String newTimestamp) {
+        String updateSQL = "UPDATE player_votes SET " + period + "_count = 1, " + period + "_timestamp = ? WHERE uuid = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(updateSQL)) {
             pstmt.setString(1, newTimestamp);
             pstmt.setString(2, playerUUID.toString());
@@ -369,11 +373,52 @@ public class VoteStorage {
      * @return The vote count
      */
     public int getPlayerVoteCount(UUID playerUUID, String type) {
-        String querySQL = "SELECT " + type + "_count FROM player_votes WHERE uuid = ?;";
+        String querySQL = "SELECT * FROM player_votes WHERE uuid = ?;";
         try (PreparedStatement pstmt = connection.prepareStatement(querySQL)) {
             pstmt.setString(1, playerUUID.toString());
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
+                if ("all_time".equals(type)) {
+                    return rs.getInt(type + "_count");
+                }
+
+                LocalDateTime now = LocalDateTime.now();
+                LocalDate today = now.toLocalDate();
+
+                String timestampColumn = type + "_timestamp";
+                String timestamp = rs.getString(timestampColumn);
+                if (timestamp == null) {
+                    return 0;
+                }
+
+                LocalDateTime storedTimestamp;
+                if (useMySQL) {
+                    storedTimestamp = LocalDateTime.parse(timestamp, formatter);
+                } else {
+                    storedTimestamp = LocalDateTime.parse(timestamp);
+                }
+
+                boolean expired = false;
+                switch (type) {
+                    case "daily":
+                        LocalDate storedDate = storedTimestamp.toLocalDate();
+                        expired = storedDate.isBefore(today);
+                        break;
+                    case "weekly":
+                        expired = storedTimestamp.isBefore(now.minusWeeks(1));
+                        break;
+                    case "monthly":
+                        expired = storedTimestamp.isBefore(now.minusMonths(1));
+                        break;
+                    case "yearly":
+                        expired = storedTimestamp.isBefore(now.minusYears(1));
+                        break;
+                }
+
+                if (expired) {
+                    return 0;
+                }
+
                 return rs.getInt(type + "_count");
             }
         } catch (SQLException e) {

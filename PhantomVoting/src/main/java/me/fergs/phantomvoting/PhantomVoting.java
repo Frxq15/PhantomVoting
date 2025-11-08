@@ -1,9 +1,6 @@
 package me.fergs.phantomvoting;
 
-import dev.jorel.commandapi.CommandAPI;
-import dev.jorel.commandapi.CommandAPIBukkitConfig;
-import me.fergs.phantomvoting.commands.AdminCommands;
-import me.fergs.phantomvoting.commands.PlayerCommands;
+import me.fergs.phantomvoting.commands.impl.CommandManager;
 import me.fergs.phantomvoting.config.ConfigurationManager;
 import me.fergs.phantomvoting.database.VoteStorage;
 import me.fergs.phantomvoting.inventories.LeaderboardInventory;
@@ -35,16 +32,8 @@ public final class PhantomVoting extends JavaPlugin {
     private VoteReminderManager<PhantomVoting> voteReminderManager;
     private MilestonesInventory milestonesInventory;
     private StreaksInventory streaksInventory;
-    /**
-     * Called when the plugin is loaded.
-     * This is where we register the Command API if it is not already loaded.
-     */
-    @Override
-    public void onLoad() {
-        if (!CommandAPI.isLoaded()) {
-            CommandAPI.onLoad(new CommandAPIBukkitConfig(this).verboseOutput(false));
-        }
-    }
+    private CommandManager commandManager;
+
     @Override
     public void onEnable() {
         instance = this;
@@ -89,8 +78,8 @@ public final class PhantomVoting extends JavaPlugin {
             new PlaceholderManager(voteStorage, votePartyManager).register();
         }
 
-        new PlayerCommands().register(this);
-        new AdminCommands().register(this);
+        commandManager = new CommandManager(this);
+        commandManager.registerCommands();
 
         if (configurationManager.isModuleEnabled("bossbar")) {
             bossbarManager = new BossbarManager<>(this);
@@ -109,6 +98,7 @@ public final class PhantomVoting extends JavaPlugin {
 
         new Metrics(this, 23888);
     }
+
     @Override
     public void onDisable() {
         try {
@@ -123,6 +113,7 @@ public final class PhantomVoting extends JavaPlugin {
             voteReminderManager.cancelAllTasks();
         }
     }
+
     /**
      * Gets the plugin instance.
      *
@@ -130,7 +121,9 @@ public final class PhantomVoting extends JavaPlugin {
      */
     public static PhantomVoting getInstance() {
         return instance;
-    }/**
+    }
+
+    /**
      * Gets the configuration manager.
      *
      * @return the configuration manager
@@ -138,6 +131,7 @@ public final class PhantomVoting extends JavaPlugin {
     public ConfigurationManager<PhantomVoting> getConfigurationManager() {
         return configurationManager;
     }
+
     /**
      * Gets the message manager.
      *
@@ -146,6 +140,7 @@ public final class PhantomVoting extends JavaPlugin {
     public MessageManager<PhantomVoting> getMessageManager() {
         return messageManager;
     }
+
     /**
      * Gets the vote storage.
      *
@@ -154,6 +149,7 @@ public final class PhantomVoting extends JavaPlugin {
     public VoteStorage getVoteStorage() {
         return voteStorage;
     }
+
     /**
      * Gets the vote party manager.
      *
@@ -162,6 +158,7 @@ public final class PhantomVoting extends JavaPlugin {
     public VotePartyManager getVotePartyManager() {
         return votePartyManager;
     }
+
     /**
      * Gets the listener manager.
      *
@@ -170,6 +167,7 @@ public final class PhantomVoting extends JavaPlugin {
     public ListenerManager<PhantomVoting> getListenerManager() {
         return listenerManager;
     }
+
     /**
      * Gets the player manager.
      *
@@ -178,6 +176,7 @@ public final class PhantomVoting extends JavaPlugin {
     public PlayerManager<PhantomVoting> getPlayerManager() {
         return playerManager;
     }
+
     /**
      * Gets the bossbar manager.
      *
@@ -186,6 +185,7 @@ public final class PhantomVoting extends JavaPlugin {
     public BossbarManager<PhantomVoting> getBossbarManager() {
         return bossbarManager;
     }
+
     /**
      * Gets the leaderboard inventory.
      *
@@ -194,6 +194,7 @@ public final class PhantomVoting extends JavaPlugin {
     public LeaderboardInventory<PhantomVoting> getLeaderboardInventory() {
         return leaderboardInventory;
     }
+
     /**
      * Gets the vote reminder manager.
      *
@@ -202,6 +203,7 @@ public final class PhantomVoting extends JavaPlugin {
     public VoteReminderManager<PhantomVoting> getVoteReminderManager() {
         return voteReminderManager;
     }
+
     /**
      * Gets the milestones inventory.
      *
@@ -210,6 +212,7 @@ public final class PhantomVoting extends JavaPlugin {
     public MilestonesInventory getMilestonesInventory() {
         return milestonesInventory;
     }
+
     /**
      * Gets the streaks inventory.
      *
